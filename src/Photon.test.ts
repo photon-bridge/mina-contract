@@ -1,29 +1,22 @@
-import { Add } from './Add';
-import { Field, Mina, PrivateKey, PublicKey, AccountUpdate } from 'snarkyjs';
-
-/*
- * This file specifies how to test the `Add` example smart contract. It is safe to delete this file and replace
- * with your own tests.
- *
- * See https://docs.minaprotocol.com/zkapps for more info.
- */
+import { Photon } from './Photon';
+import { Bool, Mina, PrivateKey, PublicKey, AccountUpdate } from 'snarkyjs';
 
 let proofsEnabled = false;
 
-describe('Add', () => {
+describe('Test', () => {
   let deployerAccount: PublicKey,
     deployerKey: PrivateKey,
     senderAccount: PublicKey,
     senderKey: PrivateKey,
     zkAppAddress: PublicKey,
     zkAppPrivateKey: PrivateKey,
-    zkApp: Add;
+    zkApp: Photon;
 
   beforeAll(async () => {
-    if (proofsEnabled) await Add.compile();
+    if (proofsEnabled) await Photon.compile();
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     const Local = Mina.LocalBlockchain({ proofsEnabled });
     Mina.setActiveInstance(Local);
     ({ privateKey: deployerKey, publicKey: deployerAccount } =
@@ -32,7 +25,9 @@ describe('Add', () => {
       Local.testAccounts[1]);
     zkAppPrivateKey = PrivateKey.random();
     zkAppAddress = zkAppPrivateKey.toPublicKey();
-    zkApp = new Add(zkAppAddress);
+    zkApp = new Photon(zkAppAddress);
+
+    await localDeploy();
   });
 
   async function localDeploy() {
@@ -45,23 +40,19 @@ describe('Add', () => {
     await txn.sign([deployerKey, zkAppPrivateKey]).send();
   }
 
-  it('generates and deploys the `Add` smart contract', async () => {
-    await localDeploy();
-    const num = zkApp.num.get();
-    expect(num).toEqual(Field(1));
-  });
+  // it('Test 1:')
 
-  it('correctly updates the num state on the `Add` smart contract', async () => {
-    await localDeploy();
+  // it('Photon 1: Absolute Value - CircuitNumber.prototype.abs()', async () => {
+  //   const txn = await Mina.transaction(deployerAccount, () => {
+  //     zkApp.abs();
+  //   });
+  //   await txn.prove();
+  //   await txn.sign([deployerKey, zkAppPrivateKey]).send();
 
-    // update transaction
-    const txn = await Mina.transaction(senderAccount, () => {
-      zkApp.update();
-    });
-    await txn.prove();
-    await txn.sign([senderKey]).send();
+  //   const result = zkApp.get();
 
-    const updatedNum = zkApp.num.get();
-    expect(updatedNum).toEqual(Field(3));
-  });
+  //   expect(result.valueOf()).toEqual(Math.abs(number1.valueOf()));
+  //   console.log(`Photon 1 Passed: Absolute Value (${number1} -> ${result.valueOf()})`);
+  // });
+
 });

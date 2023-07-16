@@ -1,3 +1,3 @@
-import { Add } from './Add.js';
+import { Photon } from './Photon.js';
 
-export { Add };
+export { Photon };
