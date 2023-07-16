@@ -297,12 +297,15 @@ export class Photon extends SmartContract {
   // Initialize the contract with the given initial Celestia and Signer merkle tree root hashes.
   @method initialize(
     initialCelestiaRootHash: Field,
+    initialSignerCount: Field,
     initialSignerRootHash: Field
   ) {
     this.celestiaBlocksTree.assertEquals(EMPTY_HASH);
+    this.signerCount.assertEquals(Field(0));
     this.signersTree.assertEquals(EMPTY_HASH);
 
     this.celestiaBlocksTree.set(initialCelestiaRootHash);
+    this.signerCount.set(initialSignerCount);
     this.signersTree.set(initialSignerRootHash);
   };
 
@@ -421,6 +424,7 @@ export class Photon extends SmartContract {
 
     newSignersTree = newSigner.witness.calculateRoot(newSigner.hash()); // The new Celestia merkle tree root hash.
 
+    this.signerCount.set(signerCount.add(Field(1)));
     this.signersTree.set(newSignersTree);
     this.signersTreeAccumulator.set(newSignersTreeAccumulator);
   };
