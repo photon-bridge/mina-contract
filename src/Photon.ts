@@ -411,9 +411,12 @@ export class Photon extends SmartContract {
 
     currSignerCount.mul(Field(10)).assertGreaterThanOrEqual(signerCount.mul(Field(6))); // More than 60% of signers should have signed the `BlockProof`.
 
+    this.reducer.dispatch(newSigner); // The newSigner is also registered with the reducer 
+    // NOTE: As the newSigner is added with the Reducer logic, it starts with 1 `signingCount` already. You may think that as a bonus, instead of a coding trick :)
+
     let { state: newSignersTree, actionState: newSignersTreeAccumulator } = this.reducer.reduce(
       this.reducer.getActions({ fromActionState: signersTreeAccumulator }), // The current accumulator state.
-      Field, // State type - merkle root
+      Field, // State type - merkle root.
       (state: Field, action: Signer) => {
         state.assertEquals(action.witness.calculateRoot(action.hash())); // This makes sure that each Signer signed only once inside the `ProverList`.
         action = action.sign(); // Add 1 signing to the signer.
@@ -422,9 +425,7 @@ export class Photon extends SmartContract {
       { state: signersTree, actionState: signersTreeAccumulator }
     );
 
-    newSignersTree = newSigner.witness.calculateRoot(newSigner.hash()); // The new Celestia merkle tree root hash.
-i
-    this.signerCount.set(signerCount.add(Field(1)));
+    this.signerCount.set(signerCount.add(Field(1))); // There is a new signer now.
     this.signersTree.set(newSignersTree);
     this.signersTreeAccumulator.set(newSignersTreeAccumulator);
   };
