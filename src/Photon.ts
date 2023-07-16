@@ -355,7 +355,7 @@ export class Photon extends SmartContract {
       this.reducer.getActions({ fromActionState: signersTreeAccumulator }), // The current accumulator state.
       Field, // State type - merkle root
       (state: Field, action: Signer) => {
-        signersTree.assertEquals(action.witness.calculateRoot(action.hash())); // This makes sure that each Signer signed only once inside the `ProverList`.
+        state.assertEquals(action.witness.calculateRoot(action.hash())); // This makes sure that each Signer signed only once inside the `ProverList`.
         action = action.sign(); // Add 1 signing to the signer.
         return action.witness.calculateRoot(action.hash()); // Update the merkle tree state.
       },
@@ -415,7 +415,7 @@ export class Photon extends SmartContract {
       this.reducer.getActions({ fromActionState: signersTreeAccumulator }), // The current accumulator state.
       Field, // State type - merkle root
       (state: Field, action: Signer) => {
-        signersTree.assertEquals(action.witness.calculateRoot(action.hash())); // This makes sure that each Signer signed only once inside the `ProverList`.
+        state.assertEquals(action.witness.calculateRoot(action.hash())); // This makes sure that each Signer signed only once inside the `ProverList`.
         action = action.sign(); // Add 1 signing to the signer.
         return action.witness.calculateRoot(action.hash()); // Update the merkle tree state.
       },
@@ -423,7 +423,7 @@ export class Photon extends SmartContract {
     );
 
     newSignersTree = newSigner.witness.calculateRoot(newSigner.hash()); // The new Celestia merkle tree root hash.
-
+i
     this.signerCount.set(signerCount.add(Field(1)));
     this.signersTree.set(newSignersTree);
     this.signersTreeAccumulator.set(newSignersTreeAccumulator);
