@@ -24,8 +24,8 @@ let proofsEnabled = false;
 
 const MAX_CELESTIA_MERKLE_TREE_HEIGHT = 17; // The Celestia merkle tree can hold at most 2^32 (4294967296) block hashes.
 const MAX_CELESTIA_BLOCK_COUNT = 65536; // Max 524288 blocks are supported. This number can be increased if needed, but do not forget to change the MAX_CELESTIA_MERKLE_TREE_HEIGHT as well.
-const MAX_SIGNER_MERKLE_TREE_HEIGHT = 7; // The Signer merkle tree can hold at most 2^10 (1024) signers.
-const MAX_SIGNER_COUNT = 50; // Max 1000 signers are supported. This number can be increased if needed, but do not forget to change the MAX_SIGNER_MERKLE_TREE_HEIGHT as well.
+const MAX_SIGNER_MERKLE_TREE_HEIGHT = 9; // The Signer merkle tree can hold at most 2^10 (1024) signers.
+const MAX_SIGNER_COUNT = 200; // Max 1000 signers are supported. This number can be increased if needed, but do not forget to change the MAX_SIGNER_MERKLE_TREE_HEIGHT as well.
 
 const celestiaData: string[] = [];
 
@@ -100,6 +100,8 @@ describe('Test', () => {
     zkAppPrivateKey = PrivateKey.random();
     zkAppAddress = zkAppPrivateKey.toPublicKey();
     zkApp = new Photon(zkAppAddress);
+
+    console.log(Local.testAccounts[0].privateKey.toBase58())
 
     for (let i = 2; i < 2 + SIGNER_COUNT; i++)
       signerPrivateKeys[i - 2] = Local.testAccounts[i].privateKey;

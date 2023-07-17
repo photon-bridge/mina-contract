@@ -17,11 +17,12 @@ import {
 
 const EMPTY_PUBLIC_KEY = "B62qrhCn7DK2b4pzbJCAxxBN1cyVAyLgN2JZDe67EV76oneJbyiCfDh";
 const EMPTY_SIGNATURE = "7mXRxyZzn511bfSEnPyWj5jqMBYssxAhTwa81Zb1p4bc4KANxMyJ9CsfHUZ64wTE28kbBZ6UcCWuotQk4TxuYdnQvZcJXKdC"; // TODO: Make this an empty string, this is a current valid signature right now for a test private key. // A base-58 encoded empty signature to initalize an empty BlockProof.
+
 const EMPTY_HASH = Field(0); // An empty hash to initialize an empty Merkle tree.
 const MAX_CELESTIA_MERKLE_TREE_HEIGHT = 17; // The Celestia merkle tree can hold at most 2^32 (4294967296) block hashes.
 const MAX_BLOCK_COUNT = 65536; // Max 65536 blocks are supported. This number can be increased if needed, but do not forget to change the MAX_CELESTIA_MERKLE_TREE_HEIGHT as well.
-const MAX_SIGNER_MERKLE_TREE_HEIGHT = 7; // The Signer merkle tree can hold at most 2^10 (1024) signers.
-const MAX_SIGNER_COUNT = 50; // Max 200 signers are supported. This number can be increased if needed, but do not forget to change the MAX_SIGNER_MERKLE_TREE_HEIGHT as well.
+const MAX_SIGNER_MERKLE_TREE_HEIGHT = 9; // The Signer merkle tree can hold at most 2^10 (1024) signers.
+const MAX_SIGNER_COUNT = 200; // Max 200 signers are supported. This number can be increased if needed, but do not forget to change the MAX_SIGNER_MERKLE_TREE_HEIGHT as well.
 
 const celestiaEmptyTree = new MerkleTree(MAX_CELESTIA_MERKLE_TREE_HEIGHT);
 const signerEmptyTree = new MerkleTree(MAX_SIGNER_MERKLE_TREE_HEIGHT);
