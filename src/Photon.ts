@@ -1,6 +1,7 @@
 import {
   Bool,
   Field,
+  MerkleTree,
   MerkleWitness,
   method,
   Poseidon,
@@ -14,23 +15,28 @@ import {
   Struct
 } from 'snarkyjs';
 
-const EMPTY_SIGNATURE = '0x0000000'; // A base-58 encoded empty signature to initalize an empty BlockProof.
+const EMPTY_PUBLIC_KEY = "B62qrhCn7DK2b4pzbJCAxxBN1cyVAyLgN2JZDe67EV76oneJbyiCfDh";
+const EMPTY_SIGNATURE = "7mXRxyZzn511bfSEnPyWj5jqMBYssxAhTwa81Zb1p4bc4KANxMyJ9CsfHUZ64wTE28kbBZ6UcCWuotQk4TxuYdnQvZcJXKdC"; // TODO: Make this an empty string, this is a current valid signature right now for a test private key. // A base-58 encoded empty signature to initalize an empty BlockProof.
 const EMPTY_HASH = Field(0); // An empty hash to initialize an empty Merkle tree.
-const MAX_CELESTIA_MERKLE_TREE_HEIGHT = 32; // The Celestia merkle tree can hold at most 2^32 (4294967296) block hashes.
-const MAX_SIGNER_MERKLE_TREE_HEIGHT = 10; // The Signer merkle tree can hold at most 2^10 (1024) signers.
-const MAX_SIGNER_COUNT = 1000; // Max 1000 signers are supported. This number can be increased if needed, but do not forget to change the MAX_SIGNER_MERKLE_TREE_HEIGHT as well.
+const MAX_CELESTIA_MERKLE_TREE_HEIGHT = 17; // The Celestia merkle tree can hold at most 2^32 (4294967296) block hashes.
+const MAX_BLOCK_COUNT = 65536; // Max 65536 blocks are supported. This number can be increased if needed, but do not forget to change the MAX_CELESTIA_MERKLE_TREE_HEIGHT as well.
+const MAX_SIGNER_MERKLE_TREE_HEIGHT = 7; // The Signer merkle tree can hold at most 2^10 (1024) signers.
+const MAX_SIGNER_COUNT = 50; // Max 200 signers are supported. This number can be increased if needed, but do not forget to change the MAX_SIGNER_MERKLE_TREE_HEIGHT as well.
+
+const celestiaEmptyTree = new MerkleTree(MAX_CELESTIA_MERKLE_TREE_HEIGHT);
+const signerEmptyTree = new MerkleTree(MAX_SIGNER_MERKLE_TREE_HEIGHT);
 
 // The contract has two CelestiaMerkleWitnessClass since Celestia and Signer merkle trees have very different heights.
 export class CelestiaMerkleWitnessClass extends MerkleWitness(MAX_CELESTIA_MERKLE_TREE_HEIGHT) {
   // Generate an empty CelestiaMerkleWitnessClass
   static empty(): CelestiaMerkleWitnessClass {
-    return new CelestiaMerkleWitnessClass([]);
+    return new CelestiaMerkleWitnessClass(celestiaEmptyTree.getWitness(0n));
   };
 };
 export class SignerMerkleWitnessClass extends MerkleWitness(MAX_SIGNER_MERKLE_TREE_HEIGHT) {
   // Generate an empty SignerMerkleWitnessClass
   static empty(): SignerMerkleWitnessClass {
-    return new SignerMerkleWitnessClass([]);
+    return new SignerMerkleWitnessClass(signerEmptyTree.getWitness(0n));
   };
 };
 
@@ -59,7 +65,7 @@ export class Signer extends Struct({
 
   static empty() {
     return new Signer(
-      PublicKey.empty(),
+      PublicKey.fromBase58(EMPTY_PUBLIC_KEY),
       SignerMerkleWitnessClass.empty(),
       Field(0)
     );
@@ -81,7 +87,7 @@ export class Signer extends Struct({
 
   // Return a Bool representing if this Signer is empty.
   isEmpty(): Bool {
-    return this.key.equals(PublicKey.empty());
+    return this.key.equals(PublicKey.fromBase58(EMPTY_PUBLIC_KEY));
   };
 
   // Create & Return a new Signer with 1 more `signingCount` than this Signer.
@@ -173,12 +179,14 @@ export class BlockProof extends Struct({
   ): Bool {
     return this.signer.check(
       signerRoot
-    ).and(
+    )
+    .and(
       this.signedBlockHash.verify(
         this.signer.key,
-        block.data.toFields()
+        [block.hash()]
       )
-    ).and(
+    )
+    .and(
       this.signedBlockHeight.equals(
         block.height
       )
@@ -238,7 +246,8 @@ function fillWithEmptyBlockProofs(
   [...provers]: BlockProof[]
 ): BlockProof[]{
   const emptyProof = BlockProof.empty();
-  for (let i = provers.length; i < MAX_SIGNER_COUNT; i++)
+
+  for (let i = provers.length; i < MAX_BLOCK_COUNT; i++)
     provers[i] = emptyProof;
   return provers;
 };
@@ -247,6 +256,7 @@ function fillWithEmptySignerProofs(
   [...provers]: SignerProof[]
 ): SignerProof[]{
   const emptyProof = SignerProof.empty();
+
   for (let i = provers.length; i < MAX_SIGNER_COUNT; i++)
     provers[i] = emptyProof;
   return provers;
@@ -291,7 +301,9 @@ export class Photon extends SmartContract {
   init() {
     super.init();
     this.celestiaBlocksTree.set(EMPTY_HASH);
+    this.signerCount.set(Field(0));
     this.signersTree.set(EMPTY_HASH);
+    this.signersTreeAccumulator.set(Reducer.initialActionState);
   };
 
   // Initialize the contract with the given initial Celestia and Signer merkle tree root hashes.
@@ -312,7 +324,26 @@ export class Photon extends SmartContract {
   // Update the Celestia merkle tree with the given new block hash and block height.
   @method update(
     newBlock: Block, // The new `Block` to be included in Celestia merkle tree.
-    newBlockProvers: BlockProofList // The `Prover` list of signed data points with the signer key.
+    prover1: BlockProof, // The `Prover` of the first `Signer` node.
+    prover2: BlockProof, // The `Prover` of the second `Signer` node.
+    prover3: BlockProof, // The `Prover` of the third `Signer` node.
+    prover4: BlockProof, // The `Prover` of the fourth `Signer` node.
+    prover5: BlockProof, // The `Prover` of the fifth `Signer` node.
+    prover6: BlockProof, // The `Prover` of the sixth `Signer` node.
+    prover7: BlockProof, // The `Prover` of the seventh `Signer` node.
+    prover8: BlockProof, // The `Prover` of the eighth `Signer` node.
+    prover9: BlockProof, // The `Prover` of the ninth `Signer` node.
+    prover10: BlockProof, // The `Prover` of the tenth `Signer` node.
+    prover11: BlockProof, // The `Prover` of the eleventh `Signer` node.
+    prover12: BlockProof, // The `Prover` of the twelfth `Signer` node.
+    prover13: BlockProof, // The `Prover` of the thirteenth `Signer` node.
+    prover14: BlockProof, // The `Prover` of the fourteenth `Signer` node.
+    prover15: BlockProof, // The `Prover` of the fifteenth `Signer` node.
+    prover16: BlockProof, // The `Prover` of the sixteenth `Signer` node.
+    prover17: BlockProof, // The `Prover` of the seventeenth `Signer` node.
+    prover18: BlockProof, // The `Prover` of the eighteenth `Signer` node.
+    prover19: BlockProof, // The `Prover` of the nineteenth `Signer` node.
+    prover20: BlockProof // The `Prover` of the twentieth `Signer` node.
   ) {
     this.celestiaBlocksTree.assertEquals(this.celestiaBlocksTree.get());
     this.signerCount.assertEquals(this.signerCount.get());
@@ -324,49 +355,59 @@ export class Photon extends SmartContract {
     const signersTree = this.signersTree.get();
     const signersTreeAccumulator = this.signersTreeAccumulator.get();
 
-    const oldCelestiaBlocksTree = newBlock.witness.calculateRoot(Block.empty().hash()); // The Block should have been empty on the previous Celestia merkle tree.
-    celestiaBlocksTree.assertEquals(oldCelestiaBlocksTree); // Check that the previous Celestia merkle tree root hash is correct.
+    const newBlockProvers = new BlockProofList([
+      prover1, prover2, prover3, prover4, prover5, prover6, prover7, prover8, prover9, prover10, prover11, prover12, prover13, prover14, prover15, prover16, prover17, prover18, prover19, prover20
+    ]);
 
+    signerCount.equals(Field(0)).assertEquals(Bool(false)); // There is at least 1 signer
+
+    let allValid = Bool(true);
     let currSignerCount = Field(0); // Number of Signers signed this proof.
 
     for (let i = 0; i < MAX_SIGNER_COUNT; i++) {
       const prover = newBlockProvers.provers[i];
 
-      Bool.or(
-        prover.isEmpty(),
-        prover.verify(
-          signersTree,
-          newBlock
+      allValid = Bool.and(
+        allValid,
+        Bool.or(
+          prover.isEmpty(),
+          prover.verify(
+            signersTree,
+            newBlock
+          )
         )
-      ).assertEquals(Bool(true)); // Check that the prover is either empty or valid.
+      );
 
-      currSignerCount.add(Provable.if(
-        prover.isEmpty(),
-        Field(0),
-        Field(1)
-      ));
+      currSignerCount = currSignerCount.add(
+        Provable.if(
+          prover.isEmpty(),
+          Field(0),
+          Field(1)
+        )
+      );
 
-      this.reducer.dispatch(prover.signer); // Update the signer state with the new `signingCount`.
+      // this.reducer.dispatch(prover.signer); // Update the signer state with the new `signingCount`.
     };
 
+    allValid.assertEquals(Bool(true));
     currSignerCount.mul(Field(10)).assertGreaterThanOrEqual(signerCount.mul(Field(6))); // More than 60% of signers should have signed the `BlockProof`.
 
-    const { state: newSignersTree, actionState: newSignersTreeAccumulator } = this.reducer.reduce(
-      this.reducer.getActions({ fromActionState: signersTreeAccumulator }), // The current accumulator state.
-      Field, // State type - merkle root
-      (state: Field, action: Signer) => {
-        state.assertEquals(action.witness.calculateRoot(action.hash())); // This makes sure that each Signer signed only once inside the `ProverList`.
-        action = action.sign(); // Add 1 signing to the signer.
-        return action.witness.calculateRoot(action.hash()); // Update the merkle tree state.
-      },
-      { state: signersTree, actionState: signersTreeAccumulator }
-    );
+    // const { state: newSignersTree, actionState: newSignersTreeAccumulator } = this.reducer.reduce(
+    //   this.reducer.getActions({ fromActionState: signersTreeAccumulator }), // The current accumulator state.
+    //   Field, // State type - merkle root
+    //   (state: Field, action: Signer) => {
+    //     state.assertEquals(action.witness.calculateRoot(action.hash())); // This makes sure that each Signer signed only once inside the `ProverList`.
+    //     action = action.sign(); // Add 1 signing to the signer.
+    //     return action.witness.calculateRoot(action.hash()); // Update the merkle tree state.
+    //   },
+    //   { state: signersTree, actionState: signersTreeAccumulator }
+    // );
 
     const newCelestiaBlocksTree = newBlock.witness.calculateRoot(newBlock.hash()); // The new Celestia merkle tree root hash.
 
     this.celestiaBlocksTree.set(newCelestiaBlocksTree);
-    this.signersTree.set(newSignersTree);
-    this.signersTreeAccumulator.set(newSignersTreeAccumulator);
+    // this.signersTree.set(newSignersTree);
+    // this.signersTreeAccumulator.set(newSignersTreeAccumulator);
   };
 
   // Register a new Signer node to the contract.
