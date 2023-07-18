@@ -240,7 +240,7 @@ export class SignerProof extends Struct({
     ).and(
       this.signedSignerPublicKey.verify(
         this.signer.key,
-        signer.key.toFields().concat([signer.signingCount])
+        [signer.hash()]
       )
     );
   };
@@ -349,10 +349,12 @@ export class Photon extends SmartContract {
     // Each proof is given as a different argument instead of an array because of a bug in the OCaml.
     proof1: BlockProof,  proof2: BlockProof,  proof3: BlockProof,  proof4: BlockProof,  proof5: BlockProof,  proof6: BlockProof,  proof7: BlockProof,  proof8: BlockProof,  proof9: BlockProof,  proof10: BlockProof, proof11: BlockProof, proof12: BlockProof, proof13: BlockProof, proof14: BlockProof, proof15: BlockProof, proof16: BlockProof, proof17: BlockProof, proof18: BlockProof, proof19: BlockProof, proof20: BlockProof 
   ) {
+    this.celestiaBlocksTree.assertEquals(this.celestiaBlocksTree.get());
     this.signerCount.assertEquals(this.signerCount.get());
     this.signersTree.assertEquals(this.signersTree.get());
     this.signersTreeAccumulator.assertEquals(this.signersTreeAccumulator.get());
 
+    // const celestiaBlocksTree = this.celestiaBlocksTree.get();
     const signerCount = this.signerCount.get();
     const signersTree = this.signersTree.get();
     // const signersTreeAccumulator = this.signersTreeAccumulator.get();
@@ -369,7 +371,7 @@ export class Photon extends SmartContract {
     for (let i = 0; i < MAX_SIGNER_COUNT; i++) {
       const proof = newBlockProvers.proofs[i];
 
-      let countOfSigners = Field(0); // This should stay 0 if all signers are unique.
+      let countOfSigners = Field(0); // This should stay 0 for all signers if all signers are unique.
 
       // Go through the array to see if this public key is already added.
       for (let i = 0; i < MAX_SIGNER_COUNT; i++)
@@ -432,62 +434,182 @@ export class Photon extends SmartContract {
 
   // Register a new Signer node to the contract.
   @method register(
-    newSigner: Signer, // The new Signer to add to the contract.
-    newSignerProvers: SignerProofList // The `Prover` list of the new Signer node.
+    newSigner: Signer, // The new Signer to be included in Signer merkle tree.
+    // Each proof is given as a different argument instead of an array because of a bug in the OCaml.
+    proof1: SignerProof,  proof2: SignerProof,  proof3: SignerProof,  proof4: SignerProof,  proof5: SignerProof,  proof6: SignerProof,  proof7: SignerProof,  proof8: SignerProof,  proof9: SignerProof,  proof10: SignerProof, proof11: SignerProof, proof12: SignerProof, proof13: SignerProof, proof14: SignerProof, proof15: SignerProof, proof16: SignerProof, proof17: SignerProof, proof18: SignerProof, proof19: SignerProof, proof20: SignerProof 
   ) {
-    newSigner.signingCount.assertEquals(Field(0)); // The new Signer should have 0 `signingCount`.
-
     this.signerCount.assertEquals(this.signerCount.get());
     this.signersTree.assertEquals(this.signersTree.get());
     this.signersTreeAccumulator.assertEquals(this.signersTreeAccumulator.get());
 
     const signerCount = this.signerCount.get();
     const signersTree = this.signersTree.get();
-    const signersTreeAccumulator = this.signersTreeAccumulator.get();
+    // const signersTreeAccumulator = this.signersTreeAccumulator.get();
 
-    const oldSignersTree = newSigner.witness.calculateRoot(Block.empty().hash()); // The Block should have been empty on the previous Celestia merkle tree.
-    signersTree.assertEquals(oldSignersTree); // Check that the previous Celestia merkle tree root hash is correct.
+    signerCount.assertLessThan(Field(MAX_SIGNER_COUNT)); // There is at most MAX_SIGNER_COUNT Signers, else you should remove a signer first.
 
+    const newSignerProvers = new SignerProofList([
+      proof1, proof2, proof3, proof4, proof5, proof6, proof7, proof8, proof9, proof10, proof11, proof12, proof13, proof14, proof15, proof16, proof17, proof18, proof19, proof20
+    ]);
+
+    signerCount.equals(Field(0)).assertEquals(Bool(false)); // There is at least 1 signer
+
+    let allValid = Bool(true);
     let currSignerCount = Field(0); // Number of Signers signed this proof.
 
     for (let i = 0; i < MAX_SIGNER_COUNT; i++) {
       const proof = newSignerProvers.proofs[i];
 
-      Bool.or(
-        proof.isEmpty(),
-        proof.verify(
-          signersTree,
-          newSigner
+      let countOfSigners = Field(0); // This should stay 0 for all signers if all signers are unique.
+
+      // Go through the array to see if this public key is already added.
+      for (let i = 0; i < MAX_SIGNER_COUNT; i++)
+        countOfSigners = countOfSigners.add(
+          Provable.if(
+            newSignerProvers.signers[i].equals(proof.signer.key),
+            Field(1),
+            Field(0)
+          )
+        );
+
+      newSignerProvers.signers[i] = proof.signer.key; // Used once, so add it to the list.
+
+      allValid = allValid.and(
+        Bool.or(
+          proof.isEmpty(),
+          Bool.and(
+            proof.verify(
+              signersTree,
+              newSigner
+            ),
+            countOfSigners.equals(Field(0))
+          )
         )
-      ).assertEquals(Bool(true)); // Check that the proof is either empty or valid.
+      );
 
-      currSignerCount.add(Provable.if(
-        proof.isEmpty(),
-        Field(0),
-        Field(1)
-      ));
+      currSignerCount = currSignerCount.add(
+        Provable.if(
+          proof.isEmpty(),
+          Field(0),
+          Field(1)
+        )
+      );
 
-      this.reducer.dispatch(proof.signer); // Update the signer state with the new `signingCount`.
+      // This line is not working since right now you can only dispatch 100 Field elements inside a @method, and number of signers can be more than 100.
+      // this.reducer.dispatch(proof.signer); // Update the signer state with the new `signingCount`.
     };
 
-    currSignerCount.mul(Field(10)).assertGreaterThanOrEqual(signerCount.mul(Field(6))); // More than 60% of signers should have signed the `BlockProof`.
+    allValid.assertEquals(Bool(true)); // Check no validity check has failed.
+    currSignerCount.mul(Field(100)).assertGreaterThanOrEqual(signerCount.mul(Field(REQUIRED_MIN_SIGNING_RATIO_FOR_SIGNER_UPDATE))); // More than REQUIRED_MIN_SIGNING_RATIO_FOR_BLOCK_UPDATE % of signers should sign the `SignerProof`.
 
-    this.reducer.dispatch(newSigner); // The newSigner is also registered with the reducer 
-    // NOTE: As the newSigner is added with the Reducer logic, it starts with 1 `signingCount` already. You may think that as a bonus, instead of a coding trick :)
+    // As we cannot dispatch more than 100 Field elements inside a @method, no need for this code right now.
+    // The contract works as expected without the reducer logic, it just does not update the `signingCount` of the Signer nodes.
+    // const { state: newSignersTree, actionState: newSignersTreeAccumulator } = this.reducer.reduce(
+    //   this.reducer.getActions({ fromActionState: signersTreeAccumulator }), // The current accumulator state.
+    //   Field, // State type - merkle root
+    //   (state: Field, action: Signer) => {
+    //     action = action.sign(); // Add 1 signing to the signer.
+    //     return action.witness.calculateRoot(action.hash()); // Update the merkle tree state.
+    //   },
+    //   { state: signersTree, actionState: signersTreeAccumulator }
+    // );
 
-    let { state: newSignersTree, actionState: newSignersTreeAccumulator } = this.reducer.reduce(
-      this.reducer.getActions({ fromActionState: signersTreeAccumulator }), // The current accumulator state.
-      Field, // State type - merkle root.
-      (state: Field, action: Signer) => {
-        state.assertEquals(action.witness.calculateRoot(action.hash())); // This makes sure that each Signer signed only once inside the `ProverList`.
-        action = action.sign(); // Add 1 signing to the signer.
-        return action.witness.calculateRoot(action.hash()); // Update the merkle tree state.
-      },
-      { state: signersTree, actionState: signersTreeAccumulator }
-    );
+    signersTree.assertEquals(newSigner.witness.calculateRoot(Signer.empty().hash())); // Check the node was empty before.
+    const newSignersTree = newSigner.witness.calculateRoot(newSigner.hash()); // The new Signer merkle tree root hash.
 
     this.signerCount.set(signerCount.add(Field(1))); // There is a new signer now.
     this.signersTree.set(newSignersTree);
-    this.signersTreeAccumulator.set(newSignersTreeAccumulator);
+    // this.signersTreeAccumulator.set(newSignersTreeAccumulator);
+  };
+
+  // // Remove a Signer from to the contract.
+  @method deregister(
+    signer: Signer, // The new Signer to be included in Signer merkle tree.
+    // Each proof is given as a different argument instead of an array because of a bug in the OCaml.
+    proof1: SignerProof,  proof2: SignerProof,  proof3: SignerProof,  proof4: SignerProof,  proof5: SignerProof,  proof6: SignerProof,  proof7: SignerProof,  proof8: SignerProof,  proof9: SignerProof,  proof10: SignerProof, proof11: SignerProof, proof12: SignerProof, proof13: SignerProof, proof14: SignerProof, proof15: SignerProof, proof16: SignerProof, proof17: SignerProof, proof18: SignerProof, proof19: SignerProof, proof20: SignerProof 
+  ) {
+    this.signerCount.assertEquals(this.signerCount.get());
+    this.signersTree.assertEquals(this.signersTree.get());
+    this.signersTreeAccumulator.assertEquals(this.signersTreeAccumulator.get());
+
+    const signerCount = this.signerCount.get();
+    const signersTree = this.signersTree.get();
+    // const signersTreeAccumulator = this.signersTreeAccumulator.get();
+
+    const newSignerProvers = new SignerProofList([
+      proof1, proof2, proof3, proof4, proof5, proof6, proof7, proof8, proof9, proof10, proof11, proof12, proof13, proof14, proof15, proof16, proof17, proof18, proof19, proof20
+    ]);
+
+    signerCount.equals(Field(0)).assertEquals(Bool(false)); // There is at least 1 signer
+
+    let allValid = Bool(true);
+    let currSignerCount = Field(0); // Number of Signers signed this proof.
+
+    for (let i = 0; i < MAX_SIGNER_COUNT; i++) {
+      const proof = newSignerProvers.proofs[i];
+
+      let countOfSigners = Field(0); // This should stay 0 for all signers if all signers are unique.
+
+      // Go through the array to see if this public key is already added.
+      for (let i = 0; i < MAX_SIGNER_COUNT; i++)
+        countOfSigners = countOfSigners.add(
+          Provable.if(
+            newSignerProvers.signers[i].equals(proof.signer.key),
+            Field(1),
+            Field(0)
+          )
+        );
+
+      newSignerProvers.signers[i] = proof.signer.key; // Used once, so add it to the list.
+
+      allValid = allValid.and(
+        Bool.or(
+          proof.isEmpty(),
+          Bool.and(
+            proof.verify(
+              signersTree,
+              signer
+            ),
+            Bool.and(
+              countOfSigners.equals(Field(0)),
+              proof.signer.key.equals(signer.key).not() // A node cannot sign the removal of itself.
+            )
+          )
+        )
+      );
+
+      currSignerCount = currSignerCount.add(
+        Provable.if(
+          proof.isEmpty(),
+          Field(0),
+          Field(1)
+        )
+      );
+
+      // This line is not working since right now you can only dispatch 100 Field elements inside a @method, and number of signers can be more than 100.
+      // this.reducer.dispatch(proof.signer); // Update the signer state with the new `signingCount`.
+    };
+
+    allValid.assertEquals(Bool(true)); // Check no validity check has failed.
+    currSignerCount.mul(Field(100)).assertGreaterThanOrEqual(signerCount.mul(Field(REQUIRED_MIN_SIGNING_RATIO_FOR_SIGNER_UPDATE))); // More than REQUIRED_MIN_SIGNING_RATIO_FOR_BLOCK_UPDATE % of signers should sign the `SignerProof`.
+
+    // As we cannot dispatch more than 100 Field elements inside a @method, no need for this code right now.
+    // The contract works as expected without the reducer logic, it just does not update the `signingCount` of the Signer nodes.
+    // const { state: newSignersTree, actionState: newSignersTreeAccumulator } = this.reducer.reduce(
+    //   this.reducer.getActions({ fromActionState: signersTreeAccumulator }), // The current accumulator state.
+    //   Field, // State type - merkle root
+    //   (state: Field, action: Signer) => {
+    //     action = action.sign(); // Add 1 signing to the signer.
+    //     return action.witness.calculateRoot(action.hash()); // Update the merkle tree state.
+    //   },
+    //   { state: signersTree, actionState: signersTreeAccumulator }
+    // );
+
+    signersTree.assertEquals(signer.witness.calculateRoot(signer.hash())); // Check the witness is correct before.
+    const newSignersTree = signer.witness.calculateRoot(Signer.empty().hash()); // Change the node to an empty Signer.
+
+    this.signerCount.set(signerCount.sub(Field(1))); // Remove 1 Signer.
+    this.signersTree.set(newSignersTree);
+    // this.signersTreeAccumulator.set(newSignersTreeAccumulator);
   };
 };
