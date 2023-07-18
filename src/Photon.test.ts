@@ -22,10 +22,10 @@ import {
 
 let proofsEnabled = false;
 
-const MAX_CELESTIA_MERKLE_TREE_HEIGHT = 17; // The Celestia merkle tree can hold at most 2^32 (4294967296) block hashes.
-const MAX_CELESTIA_BLOCK_COUNT = 65536; // Max 524288 blocks are supported. This number can be increased if needed, but do not forget to change the MAX_CELESTIA_MERKLE_TREE_HEIGHT as well.
-const MAX_SIGNER_MERKLE_TREE_HEIGHT = 9; // The Signer merkle tree can hold at most 2^10 (1024) signers.
-const MAX_SIGNER_COUNT = 200; // Max 1000 signers are supported. This number can be increased if needed, but do not forget to change the MAX_SIGNER_MERKLE_TREE_HEIGHT as well.
+const MAX_CELESTIA_MERKLE_TREE_HEIGHT = 21; // The Celestia merkle tree can hold at most 2^20 (1048576) block hashes.
+const MAX_BLOCK_COUNT = 1048576; // Max 1048576 blocks are supported. This number can be increased if needed, but do not forget to change the MAX_CELESTIA_MERKLE_TREE_HEIGHT as well.
+const MAX_SIGNER_MERKLE_TREE_HEIGHT = 20; // The Signer merkle tree can hold at most 2^20 (1048576) signers. This is much more than the SIGNER_COUNT, since we do not remove a node from the Signer merkle tree when a Signer is removed.
+const MAX_SIGNER_COUNT = 200; // Max 200 signers are supported. This number can be increased if needed.
 
 const celestiaData: string[] = [];
 
@@ -67,7 +67,7 @@ function sign(
   // console.log(block.data.toBigInt());
   // console.log(block.height.toBigInt());
 
-  const dataPoint = celestiaData.find((each, index) => stringToBigInt(each) ==  block.data.toBigInt() && BigInt(index) == block.height.toBigInt());
+  const dataPoint = celestiaData.find((each, index) => stringToBigInt(each) ==  block.commitment.toBigInt() && BigInt(index) == block.height.toBigInt());
   if (!dataPoint)
     throw new Error(`No data point found for this height.`);
 
@@ -83,6 +83,7 @@ describe('Test', () => {
     zkAppPrivateKey: PrivateKey,
     zkApp: Photon;
 
+  const NAMESPACE = stringToBigInt('Photon');
   const SIGNER_COUNT = 5;
   const signerPrivateKeys = Array.from({ length: SIGNER_COUNT }, _ => PrivateKey.random());
 
@@ -101,12 +102,12 @@ describe('Test', () => {
     zkAppAddress = zkAppPrivateKey.toPublicKey();
     zkApp = new Photon(zkAppAddress);
 
-    console.log(Local.testAccounts[0].privateKey.toBase58())
-
     for (let i = 2; i < 2 + SIGNER_COUNT; i++)
       signerPrivateKeys[i - 2] = Local.testAccounts[i].privateKey;
 
     await localDeploy();
+
+    // Initialize the contract with the given values
 
     const celestiaTree = new MerkleTree(MAX_CELESTIA_MERKLE_TREE_HEIGHT);
     const signerTree = new MerkleTree(MAX_SIGNER_MERKLE_TREE_HEIGHT);
@@ -126,6 +127,7 @@ describe('Test', () => {
 
     const txn = await Mina.transaction(deployerAccount, () => {
       zkApp.initialize(
+        Field(NAMESPACE),
         celestiaTree.getRoot(),
         Field(SIGNER_COUNT),
         signerTree.getRoot()
@@ -145,7 +147,9 @@ describe('Test', () => {
     await txn.sign([deployerKey, zkAppPrivateKey]).send();
   }
 
-  it('Test 1: Initialize the Contract', async () => {
+  it('Test 1: Initialize the Contract with the given values and check the state is updated as expected.', async () => {
+    // No need to send and transactions as there is beforeEach call doing the initilization.
+
     const celestiaTree = new MerkleTree(MAX_CELESTIA_MERKLE_TREE_HEIGHT);
     const signerTree = new MerkleTree(MAX_SIGNER_MERKLE_TREE_HEIGHT);
 
@@ -168,7 +172,7 @@ describe('Test', () => {
     expect(zkApp.signersTreeAccumulator.get()).toEqual(Reducer.initialActionState);
   });
 
-  it('Test 2: Add a block to the Celestia Merkle Tree', async () => {
+  it('Test 2: Add a valid block to the Celestia Merkle Tree and check the state is updated as expected.', async () => {
     const newData = "New data json. In real life, this would be a block hash.";
 
     // Generate Celestia Tree
